@@ -20,7 +20,7 @@ begin
     Take2: \* self + 1 番目の箸を1本とる
         with n = (self + 1) % Cardinality(PHILOSOPHERS) do
             await ~chopsticks[n];
-            left := TRUE;
+            right := TRUE;
         end with;
 
     Eat: skip; \* 食べる
