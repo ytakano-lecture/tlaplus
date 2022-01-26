@@ -31,7 +31,7 @@ begin
 
     Put2:
         with n = (self + 1) % Cardinality(PHILOSOPHERS) do
-            await ~chopsticks[n];
+            chopsticks[n] := FALSE;
             right := FALSE;
         end with;
 end process;
