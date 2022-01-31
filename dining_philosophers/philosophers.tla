@@ -38,7 +38,7 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "f5506938" /\ chksum(tla) = "b20e65e8")
+\* BEGIN TRANSLATION (chksum(pcal) = "eff9f14e" /\ chksum(tla) = "217377c5")
 VARIABLES chopsticks, pc, left, right
 
 vars == << chopsticks, pc, left, right >>
@@ -62,9 +62,10 @@ Take1(self) == /\ pc[self] = "Take1"
 Take2(self) == /\ pc[self] = "Take2"
                /\ LET n == (self + 1) % Cardinality(PHILOSOPHERS) IN
                     /\ ~chopsticks[n]
-                    /\ left' = [left EXCEPT ![self] = TRUE]
+                    /\ chopsticks' = [chopsticks EXCEPT ![n] = TRUE]
+                    /\ right' = [right EXCEPT ![self] = TRUE]
                /\ pc' = [pc EXCEPT ![self] = "Eat"]
-               /\ UNCHANGED << chopsticks, right >>
+               /\ left' = left
 
 Eat(self) == /\ pc[self] = "Eat"
              /\ TRUE
@@ -79,10 +80,10 @@ Put1(self) == /\ pc[self] = "Put1"
 
 Put2(self) == /\ pc[self] = "Put2"
               /\ LET n == (self + 1) % Cardinality(PHILOSOPHERS) IN
-                   /\ ~chopsticks[n]
+                   /\ chopsticks' = [chopsticks EXCEPT ![n] = FALSE]
                    /\ right' = [right EXCEPT ![self] = FALSE]
               /\ pc' = [pc EXCEPT ![self] = "Done"]
-              /\ UNCHANGED << chopsticks, left >>
+              /\ left' = left
 
 philosopher(self) == Take1(self) \/ Take2(self) \/ Eat(self) \/ Put1(self)
                         \/ Put2(self)
