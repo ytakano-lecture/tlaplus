@@ -31,15 +31,11 @@ begin
          * }
          *)
         if wcnt = 0 then
-            \* 検証
-            readers := readers + 1;
-            assert writers = 0; \* ライターがいないことを確認
-
             return;
         else
             \* self.rcnt.fetch_sub(1, Ordering::Relaxed);
             rcnt := rcnt - 1;
-            goto RWLockLoop;
+            goto IncrementRcnt;
         end if;
 end procedure;
 
@@ -49,9 +45,6 @@ begin
     DecrementRcnt:
         \* self.rcnt.fetch_sub(1, Ordering::Release);
         rcnt := rcnt - 1;
-
-        \* 検証用
-        readers := readers - 1;
         return;
 end procedure;
 
@@ -71,10 +64,6 @@ begin
     WriteUnlock:
         \* self.rwlock.lock.store(false, Ordering::Relaxed);
         lock := FALSE;
-
-        \* 検証用
-        writers := writers - 1;
-
     DecrementWcnt:
         \* self.wcnt.fetch_sub(1, Ordering::Release);
         wcnt := wcnt - 1;
@@ -87,11 +76,14 @@ begin
         call read_lock();
 
     ReaderTransaction:
-        skip;
+        readers := readers + 1;
+    ReaderAssert:
+        assert writers = 0; \* ライターがいないことを確認
+    EndReaderTransaction:
+        readers := readers - 1;
 
     ReaderUnlock:
         call read_unlock();
-
     ReaderContinue:
         goto ReaderLoop;
 end process;
@@ -101,18 +93,22 @@ begin
     WriterLoop:
         call write_lock();
 
-    WriteTransaction:
-        skip;
+    WriterTransaction:
+        writers := writers + 1;
+    WriterAssert:
+        assert readers = 0; \* リーダーがいないことを確認
+        assert writers = 1; \* ライターが1人のみのことを確認
+    EndWriterTransaction:
+        writers := writers - 1;
 
     WriterUnlock:
         call write_unlock();
-
     WriterContinue:
         goto WriterLoop;
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "e85bf348" /\ chksum(tla) = "37fabb03")
+\* BEGIN TRANSLATION (chksum(pcal) = "e352d8a7" /\ chksum(tla) = "9b9233bf")
 VARIABLES rcnt, wcnt, lock, readers, writers, pc, stack
 
 vars == << rcnt, wcnt, lock, readers, writers, pc, stack >>
@@ -141,67 +137,36 @@ IncrementRcnt(self) == /\ pc[self] = "IncrementRcnt"
 
 CheckWcnt(self) == /\ pc[self] = "CheckWcnt"
                    /\ IF wcnt = 0
-                         THEN /\ readers' = readers + 1
-                              /\ Assert(writers = 0,
-                                        "Failure of assertion at line 36, column 13.")
-                              /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
+                         THEN /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
                               /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
                               /\ rcnt' = rcnt
                          ELSE /\ rcnt' = rcnt - 1
-                              /\ pc' = [pc EXCEPT ![self] = "RWLockLoop"]
-                              /\ UNCHANGED << readers, stack >>
-                   /\ UNCHANGED << wcnt, lock, writers >>
+                              /\ pc' = [pc EXCEPT ![self] = "IncrementRcnt"]
+                              /\ stack' = stack
+                   /\ UNCHANGED << wcnt, lock, readers, writers >>
 
 read_lock(self) == RWLockLoop(self) \/ IncrementRcnt(self)
                       \/ CheckWcnt(self)
 
 DecrementRcnt(self) == /\ pc[self] = "DecrementRcnt"
                        /\ rcnt' = rcnt - 1
-                       /\ readers' = readers - 1
                        /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
                        /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
-                       /\ UNCHANGED << wcnt, lock, writers >>
+                       /\ UNCHANGED << wcnt, lock, readers, writers >>
 
 read_unlock(self) == DecrementRcnt(self)
 
 IncrementWcnt(self) == /\ pc[self] = "IncrementWcnt"
                        /\ wcnt' = wcnt + 1
-                       /\ pc' = [pc EXCEPT ![self] = "WaitRcnt"]
+                       /\ pc' = [pc EXCEPT ![self] = "Error"]
                        /\ UNCHANGED << rcnt, lock, readers, writers, stack >>
 
-WaitRcnt(self) == /\ pc[self] = "WaitRcnt"
-                  /\ rcnt = 0
-                  /\ pc' = [pc EXCEPT ![self] = "WriteLockLoop"]
-                  /\ UNCHANGED << rcnt, wcnt, lock, readers, writers, stack >>
-
-WriteLockLoop(self) == /\ pc[self] = "WriteLockLoop"
-                       /\ lock = FALSE
-                       /\ pc' = [pc EXCEPT ![self] = "CompareExchange"]
-                       /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
-                                       stack >>
-
-CompareExchange(self) == /\ pc[self] = "CompareExchange"
-                         /\ IF lock = FALSE
-                               THEN /\ lock' = TRUE
-                                    /\ writers' = writers + 1
-                                    /\ Assert(readers = 0,
-                                              "Failure of assertion at line 87, column 13.")
-                                    /\ Assert(writers' = 1,
-                                              "Failure of assertion at line 88, column 13.")
-                                    /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
-                                    /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
-                               ELSE /\ pc' = [pc EXCEPT ![self] = "WriteLockLoop"]
-                                    /\ UNCHANGED << lock, writers, stack >>
-                         /\ UNCHANGED << rcnt, wcnt, readers >>
-
-write_lock(self) == IncrementWcnt(self) \/ WaitRcnt(self)
-                       \/ WriteLockLoop(self) \/ CompareExchange(self)
+write_lock(self) == IncrementWcnt(self)
 
 WriteUnlock(self) == /\ pc[self] = "WriteUnlock"
                      /\ lock' = FALSE
-                     /\ writers' = writers - 1
                      /\ pc' = [pc EXCEPT ![self] = "DecrementWcnt"]
-                     /\ UNCHANGED << rcnt, wcnt, readers, stack >>
+                     /\ UNCHANGED << rcnt, wcnt, readers, writers, stack >>
 
 DecrementWcnt(self) == /\ pc[self] = "DecrementWcnt"
                        /\ wcnt' = wcnt - 1
@@ -219,10 +184,21 @@ ReaderLoop(self) == /\ pc[self] = "ReaderLoop"
                     /\ UNCHANGED << rcnt, wcnt, lock, readers, writers >>
 
 ReaderTransaction(self) == /\ pc[self] = "ReaderTransaction"
-                           /\ TRUE
-                           /\ pc' = [pc EXCEPT ![self] = "ReaderUnlock"]
-                           /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
-                                           stack >>
+                           /\ readers' = readers + 1
+                           /\ pc' = [pc EXCEPT ![self] = "ReaderAssert"]
+                           /\ UNCHANGED << rcnt, wcnt, lock, writers, stack >>
+
+ReaderAssert(self) == /\ pc[self] = "ReaderAssert"
+                      /\ Assert(writers = 0,
+                                "Failure of assertion at line 81, column 9.")
+                      /\ pc' = [pc EXCEPT ![self] = "EndReaderTransaction"]
+                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                                      stack >>
+
+EndReaderTransaction(self) == /\ pc[self] = "EndReaderTransaction"
+                              /\ readers' = readers - 1
+                              /\ pc' = [pc EXCEPT ![self] = "ReaderUnlock"]
+                              /\ UNCHANGED << rcnt, wcnt, lock, writers, stack >>
 
 ReaderUnlock(self) == /\ pc[self] = "ReaderUnlock"
                       /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "read_unlock",
@@ -237,20 +213,34 @@ ReaderContinue(self) == /\ pc[self] = "ReaderContinue"
                                         stack >>
 
 reader(self) == ReaderLoop(self) \/ ReaderTransaction(self)
+                   \/ ReaderAssert(self) \/ EndReaderTransaction(self)
                    \/ ReaderUnlock(self) \/ ReaderContinue(self)
 
 WriterLoop(self) == /\ pc[self] = "WriterLoop"
                     /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "write_lock",
-                                                             pc        |->  "WriteTransaction" ] >>
+                                                             pc        |->  "WriterTransaction" ] >>
                                                          \o stack[self]]
                     /\ pc' = [pc EXCEPT ![self] = "IncrementWcnt"]
                     /\ UNCHANGED << rcnt, wcnt, lock, readers, writers >>
 
-WriteTransaction(self) == /\ pc[self] = "WriteTransaction"
-                          /\ TRUE
-                          /\ pc' = [pc EXCEPT ![self] = "WriterUnlock"]
-                          /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
-                                          stack >>
+WriterTransaction(self) == /\ pc[self] = "WriterTransaction"
+                           /\ writers' = writers + 1
+                           /\ pc' = [pc EXCEPT ![self] = "WriterAssert"]
+                           /\ UNCHANGED << rcnt, wcnt, lock, readers, stack >>
+
+WriterAssert(self) == /\ pc[self] = "WriterAssert"
+                      /\ Assert(readers = 0,
+                                "Failure of assertion at line 99, column 9.")
+                      /\ Assert(writers = 1,
+                                "Failure of assertion at line 100, column 9.")
+                      /\ pc' = [pc EXCEPT ![self] = "EndWriterTransaction"]
+                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                                      stack >>
+
+EndWriterTransaction(self) == /\ pc[self] = "EndWriterTransaction"
+                              /\ writers' = writers - 1
+                              /\ pc' = [pc EXCEPT ![self] = "WriterUnlock"]
+                              /\ UNCHANGED << rcnt, wcnt, lock, readers, stack >>
 
 WriterUnlock(self) == /\ pc[self] = "WriterUnlock"
                       /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "write_unlock",
@@ -264,7 +254,8 @@ WriterContinue(self) == /\ pc[self] = "WriterContinue"
                         /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
                                         stack >>
 
-writer(self) == WriterLoop(self) \/ WriteTransaction(self)
+writer(self) == WriterLoop(self) \/ WriterTransaction(self)
+                   \/ WriterAssert(self) \/ EndWriterTransaction(self)
                    \/ WriterUnlock(self) \/ WriterContinue(self)
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
