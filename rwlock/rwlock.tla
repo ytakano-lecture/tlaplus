@@ -35,7 +35,7 @@ begin
         else
             \* self.rcnt.fetch_sub(1, Ordering::Relaxed);
             rcnt := rcnt - 1;
-            goto IncrementRcnt;
+            goto RWLockLoop;
         end if;
 end procedure;
 
@@ -108,7 +108,7 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "e352d8a7" /\ chksum(tla) = "9b9233bf")
+\* BEGIN TRANSLATION (chksum(pcal) = "a898af7a" /\ chksum(tla) = "aef21059")
 VARIABLES rcnt, wcnt, lock, readers, writers, pc, stack
 
 vars == << rcnt, wcnt, lock, readers, writers, pc, stack >>
@@ -141,7 +141,7 @@ CheckWcnt(self) == /\ pc[self] = "CheckWcnt"
                               /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
                               /\ rcnt' = rcnt
                          ELSE /\ rcnt' = rcnt - 1
-                              /\ pc' = [pc EXCEPT ![self] = "IncrementRcnt"]
+                              /\ pc' = [pc EXCEPT ![self] = "RWLockLoop"]
                               /\ stack' = stack
                    /\ UNCHANGED << wcnt, lock, readers, writers >>
 
@@ -189,10 +189,10 @@ ReaderTransaction(self) == /\ pc[self] = "ReaderTransaction"
                            /\ UNCHANGED << rcnt, wcnt, lock, writers, stack >>
 
 ReaderAssert(self) == /\ pc[self] = "ReaderAssert"
-                      /\ Assert(writers = 0,
+                      /\ Assert(writers = 0, 
                                 "Failure of assertion at line 81, column 9.")
                       /\ pc' = [pc EXCEPT ![self] = "EndReaderTransaction"]
-                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers, 
                                       stack >>
 
 EndReaderTransaction(self) == /\ pc[self] = "EndReaderTransaction"
@@ -209,7 +209,7 @@ ReaderUnlock(self) == /\ pc[self] = "ReaderUnlock"
 
 ReaderContinue(self) == /\ pc[self] = "ReaderContinue"
                         /\ pc' = [pc EXCEPT ![self] = "ReaderLoop"]
-                        /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                        /\ UNCHANGED << rcnt, wcnt, lock, readers, writers, 
                                         stack >>
 
 reader(self) == ReaderLoop(self) \/ ReaderTransaction(self)
@@ -229,12 +229,12 @@ WriterTransaction(self) == /\ pc[self] = "WriterTransaction"
                            /\ UNCHANGED << rcnt, wcnt, lock, readers, stack >>
 
 WriterAssert(self) == /\ pc[self] = "WriterAssert"
-                      /\ Assert(readers = 0,
+                      /\ Assert(readers = 0, 
                                 "Failure of assertion at line 99, column 9.")
-                      /\ Assert(writers = 1,
+                      /\ Assert(writers = 1, 
                                 "Failure of assertion at line 100, column 9.")
                       /\ pc' = [pc EXCEPT ![self] = "EndWriterTransaction"]
-                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                      /\ UNCHANGED << rcnt, wcnt, lock, readers, writers, 
                                       stack >>
 
 EndWriterTransaction(self) == /\ pc[self] = "EndWriterTransaction"
@@ -251,7 +251,7 @@ WriterUnlock(self) == /\ pc[self] = "WriterUnlock"
 
 WriterContinue(self) == /\ pc[self] = "WriterContinue"
                         /\ pc' = [pc EXCEPT ![self] = "WriterLoop"]
-                        /\ UNCHANGED << rcnt, wcnt, lock, readers, writers,
+                        /\ UNCHANGED << rcnt, wcnt, lock, readers, writers, 
                                         stack >>
 
 writer(self) == WriterLoop(self) \/ WriterTransaction(self)
