@@ -6,7 +6,7 @@ CONSTANTS PHILOSOPHERS
 variables
     chopsticks = [p \in PHILOSOPHERS |-> FALSE]
 
-fair process philosopher \in PHILOSOPHERS
+process philosopher \in PHILOSOPHERS
 variables
     left = FALSE,
     right = FALSE;
@@ -38,7 +38,7 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "eff9f14e" /\ chksum(tla) = "217377c5")
+\* BEGIN TRANSLATION (chksum(pcal) = "e91f1607" /\ chksum(tla) = "3567da29")
 VARIABLES chopsticks, pc, left, right
 
 vars == << chopsticks, pc, left, right >>
@@ -95,8 +95,7 @@ Terminating == /\ \A self \in ProcSet: pc[self] = "Done"
 Next == (\E self \in PHILOSOPHERS: philosopher(self))
            \/ Terminating
 
-Spec == /\ Init /\ [][Next]_vars
-        /\ \A self \in PHILOSOPHERS : WF_vars(philosopher(self))
+Spec == Init /\ [][Next]_vars
 
 Termination == <>(\A self \in ProcSet: pc[self] = "Done")
 
