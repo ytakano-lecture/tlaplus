@@ -13,6 +13,13 @@ variables
     acquired = [p \in PROCESSES |-> FALSE], \* プロセスがロックを獲得したかどうか
     num_locks = 0 \* ロックを獲得したプロセスの数
 
+define
+    TypeInvariant == PROCESSES \subseteq Int
+
+    FiarLock == \A p \in PROCESSES: <>acquired[p] \* プロセスがいつか必ずロックを獲得する
+    AtMostOne == num_locks <= 1 \* ロックを獲得するプロセスが1つのみ
+end define;
+
 procedure fair_lock(idx)
 begin
     BeginLock:
@@ -46,13 +53,20 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "231e35e3" /\ chksum(tla) = "3d0dd98d")
-\* Parameter idx of procedure fair_lock at line 16 col 21 changed to idx_
+\* BEGIN TRANSLATION (chksum(pcal) = "dcc78c5c" /\ chksum(tla) = "67eea49c")
+\* Parameter idx of procedure fair_lock at line 23 col 21 changed to idx_
 CONSTANT defaultInitValue
-VARIABLES waiting, lock, turn, acquired, num_locks, pc, stack, idx_, idx,
-          next
+VARIABLES waiting, lock, turn, acquired, num_locks, pc, stack
 
-vars == << waiting, lock, turn, acquired, num_locks, pc, stack, idx_, idx,
+(* define statement *)
+TypeInvariant == PROCESSES \subseteq Int
+
+FiarLock == \A p \in PROCESSES: <>acquired[p]
+AtMostOne == num_locks <= 1
+
+VARIABLES idx_, idx, next
+
+vars == << waiting, lock, turn, acquired, num_locks, pc, stack, idx_, idx, 
            next >>
 
 ProcSet == (PROCESSES)
@@ -74,7 +88,7 @@ Init == (* Global variables *)
 BeginLock(self) == /\ pc[self] = "BeginLock"
                    /\ TRUE
                    /\ pc' = [pc EXCEPT ![self] = "Error"]
-                   /\ UNCHANGED << waiting, lock, turn, acquired, num_locks,
+                   /\ UNCHANGED << waiting, lock, turn, acquired, num_locks, 
                                    stack, idx_, idx, next >>
 
 fair_lock(self) == BeginLock(self)
@@ -82,7 +96,7 @@ fair_lock(self) == BeginLock(self)
 BeginUnlock(self) == /\ pc[self] = "BeginUnlock"
                      /\ TRUE
                      /\ pc' = [pc EXCEPT ![self] = "Error"]
-                     /\ UNCHANGED << waiting, lock, turn, acquired, num_locks,
+                     /\ UNCHANGED << waiting, lock, turn, acquired, num_locks, 
                                      stack, idx_, idx, next >>
 
 fair_unlock(self) == BeginUnlock(self)
@@ -94,21 +108,21 @@ ProcessLock(self) == /\ pc[self] = "ProcessLock"
                                                                  idx_      |->  idx_[self] ] >>
                                                              \o stack[self]]
                      /\ pc' = [pc EXCEPT ![self] = "BeginLock"]
-                     /\ UNCHANGED << waiting, lock, turn, acquired, num_locks,
+                     /\ UNCHANGED << waiting, lock, turn, acquired, num_locks, 
                                      idx, next >>
 
 Transaction(self) == /\ pc[self] = "Transaction"
                      /\ acquired' = [acquired EXCEPT ![self] = TRUE]
                      /\ num_locks' = num_locks + 1
                      /\ pc' = [pc EXCEPT ![self] = "EndTransaction"]
-                     /\ UNCHANGED << waiting, lock, turn, stack, idx_, idx,
+                     /\ UNCHANGED << waiting, lock, turn, stack, idx_, idx, 
                                      next >>
 
 EndTransaction(self) == /\ pc[self] = "EndTransaction"
                         /\ acquired' = [acquired EXCEPT ![self] = FALSE]
                         /\ num_locks' = num_locks - 1
                         /\ pc' = [pc EXCEPT ![self] = "ProcessUnlock"]
-                        /\ UNCHANGED << waiting, lock, turn, stack, idx_, idx,
+                        /\ UNCHANGED << waiting, lock, turn, stack, idx_, idx, 
                                         next >>
 
 ProcessUnlock(self) == /\ pc[self] = "ProcessUnlock"
@@ -120,7 +134,7 @@ ProcessUnlock(self) == /\ pc[self] = "ProcessUnlock"
                                                                \o stack[self]]
                        /\ next' = [next EXCEPT ![self] = 0]
                        /\ pc' = [pc EXCEPT ![self] = "BeginUnlock"]
-                       /\ UNCHANGED << waiting, lock, turn, acquired,
+                       /\ UNCHANGED << waiting, lock, turn, acquired, 
                                        num_locks, idx_ >>
 
 P(self) == ProcessLock(self) \/ Transaction(self) \/ EndTransaction(self)
@@ -140,9 +154,4 @@ Spec == /\ Init /\ [][Next]_vars
 Termination == <>(\A self \in ProcSet: pc[self] = "Done")
 
 \* END TRANSLATION
-
-TypeInvariant == PROCESSES \subseteq Int
-
-FiarLock == \A p \in PROCESSES: <>acquired[p] \* プロセスがいつか必ずロックを獲得する
-AtMostOne == num_locks <= 1 \* ロックを獲得するプロセスが1つのみ
 ====

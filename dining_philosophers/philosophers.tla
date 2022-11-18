@@ -6,6 +6,10 @@ CONSTANTS PHILOSOPHERS
 variables
     chopsticks = [p \in PHILOSOPHERS |-> FALSE]
 
+define
+    TypeInvariant == PHILOSOPHERS \subseteq Int
+end define;
+
 process philosopher \in PHILOSOPHERS
 variables
     left = FALSE,
@@ -38,8 +42,13 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "e91f1607" /\ chksum(tla) = "3567da29")
-VARIABLES chopsticks, pc, left, right
+\* BEGIN TRANSLATION (chksum(pcal) = "271a234b" /\ chksum(tla) = "3fa7ce40")
+VARIABLES chopsticks, pc
+
+(* define statement *)
+TypeInvariant == PHILOSOPHERS \subseteq Int
+
+VARIABLES left, right
 
 vars == << chopsticks, pc, left, right >>
 
@@ -100,6 +109,4 @@ Spec == Init /\ [][Next]_vars
 Termination == <>(\A self \in ProcSet: pc[self] = "Done")
 
 \* END TRANSLATION
-
-TypeInvariant == PHILOSOPHERS \subseteq Int
 ====
