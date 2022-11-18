@@ -156,7 +156,7 @@ begin
         assert(pid \in NODES);
         call create_subscribe(pid, TopicInit, TransientLocal, KeepLast);
 
-    WaitInitDiagnostics:
+    WaitInitPerception:
         wait(pid, TopicInit);
         call create_publish(pid, TopicControl, Volatile, KeepLast);
 
@@ -212,8 +212,7 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "262531f6" /\ chksum(tla) = "336d64f8")
-\* Label WaitInitDiagnostics of process Diagnostics at line 31 col 5 changed to WaitInitDiagnostics_
+\* BEGIN TRANSLATION (chksum(pcal) = "ba1b296f" /\ chksum(tla) = "73a42464")
 \* Process variable pid of process Initializer at line 116 col 5 changed to pid_
 \* Process variable pid of process Diagnostics at line 129 col 5 changed to pid_D
 \* Process variable pid of process Perception at line 153 col 5 changed to pid_P
@@ -494,7 +493,7 @@ BeginDiagnostics == /\ pc["Diagnostics"] = "BeginDiagnostics"
                        /\ history' = [history EXCEPT !["Diagnostics"] = KeepLast]
                        /\ pid_cr' = [pid_cr EXCEPT !["Diagnostics"] = pid_D]
                        /\ stack' = [stack EXCEPT !["Diagnostics"] = << [ procedure |->  "create_subscribe",
-                                                                         pc        |->  "WaitInitDiagnostics_",
+                                                                         pc        |->  "WaitInitDiagnostics",
                                                                          pid_cr    |->  pid_cr["Diagnostics"],
                                                                          topic_c   |->  topic_c["Diagnostics"],
                                                                          durability |->  durability["Diagnostics"],
@@ -509,29 +508,29 @@ BeginDiagnostics == /\ pc["Diagnostics"] = "BeginDiagnostics"
                                     history_, pid, topic, data, dst, nodes, 
                                     pid_, pid_D, pid_P, result, pid_C >>
 
-WaitInitDiagnostics_ == /\ pc["Diagnostics"] = "WaitInitDiagnostics_"
-                        /\ Assert((topics[TopicInit].subscribers[pid_D].subscribed), 
-                                  "Failure of assertion at line 31, column 5 of macro called at line 136, column 9.")
-                        /\ topics[TopicInit].subscribers[pid_D].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
-                        /\ /\ durability_' = [durability_ EXCEPT !["Diagnostics"] = Volatile]
-                           /\ history_' = [history_ EXCEPT !["Diagnostics"] = KeepLast]
-                           /\ pid_c' = [pid_c EXCEPT !["Diagnostics"] = pid_D]
-                           /\ stack' = [stack EXCEPT !["Diagnostics"] = << [ procedure |->  "create_publish",
-                                                                             pc        |->  "StateNormal",
-                                                                             pid_c     |->  pid_c["Diagnostics"],
-                                                                             topic_    |->  topic_["Diagnostics"],
-                                                                             durability_ |->  durability_["Diagnostics"],
-                                                                             history_  |->  history_["Diagnostics"] ] >>
-                                                                         \o stack["Diagnostics"]]
-                           /\ topic_' = [topic_ EXCEPT !["Diagnostics"] = TopicControl]
-                        /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginCreatePublish"]
-                        /\ UNCHANGED << topics, finish_diagnostics, 
-                                        finish_perception, StateInitializer, 
-                                        StateDiagnostics, StatePerception, 
-                                        StateControl, pid_cr, topic_c, 
-                                        durability, history, pid, topic, data, 
-                                        dst, nodes, pid_, pid_D, pid_P, result, 
-                                        pid_C >>
+WaitInitDiagnostics == /\ pc["Diagnostics"] = "WaitInitDiagnostics"
+                       /\ Assert((topics[TopicInit].subscribers[pid_D].subscribed), 
+                                 "Failure of assertion at line 31, column 5 of macro called at line 136, column 9.")
+                       /\ topics[TopicInit].subscribers[pid_D].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
+                       /\ /\ durability_' = [durability_ EXCEPT !["Diagnostics"] = Volatile]
+                          /\ history_' = [history_ EXCEPT !["Diagnostics"] = KeepLast]
+                          /\ pid_c' = [pid_c EXCEPT !["Diagnostics"] = pid_D]
+                          /\ stack' = [stack EXCEPT !["Diagnostics"] = << [ procedure |->  "create_publish",
+                                                                            pc        |->  "StateNormal",
+                                                                            pid_c     |->  pid_c["Diagnostics"],
+                                                                            topic_    |->  topic_["Diagnostics"],
+                                                                            durability_ |->  durability_["Diagnostics"],
+                                                                            history_  |->  history_["Diagnostics"] ] >>
+                                                                        \o stack["Diagnostics"]]
+                          /\ topic_' = [topic_ EXCEPT !["Diagnostics"] = TopicControl]
+                       /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginCreatePublish"]
+                       /\ UNCHANGED << topics, finish_diagnostics, 
+                                       finish_perception, StateInitializer, 
+                                       StateDiagnostics, StatePerception, 
+                                       StateControl, pid_cr, topic_c, 
+                                       durability, history, pid, topic, data, 
+                                       dst, nodes, pid_, pid_D, pid_P, result, 
+                                       pid_C >>
 
 StateNormal == /\ pc["Diagnostics"] = "StateNormal"
                /\ StateDiagnostics' = "normal"
@@ -587,7 +586,7 @@ EndDiagnostics == /\ pc["Diagnostics"] = "EndDiagnostics"
                                   durability, history, pid, topic, data, dst, 
                                   nodes, pid_, pid_D, pid_P, result, pid_C >>
 
-Diagnostics == BeginDiagnostics \/ WaitInitDiagnostics_ \/ StateNormal
+Diagnostics == BeginDiagnostics \/ WaitInitDiagnostics \/ StateNormal
                   \/ StateError \/ EndDiagnostics
 
 BeginPerception == /\ pc["Perception"] = "BeginPerception"
@@ -597,7 +596,7 @@ BeginPerception == /\ pc["Perception"] = "BeginPerception"
                       /\ history' = [history EXCEPT !["Perception"] = KeepLast]
                       /\ pid_cr' = [pid_cr EXCEPT !["Perception"] = pid_P]
                       /\ stack' = [stack EXCEPT !["Perception"] = << [ procedure |->  "create_subscribe",
-                                                                       pc        |->  "WaitInitDiagnostics",
+                                                                       pc        |->  "WaitInitPerception",
                                                                        pid_cr    |->  pid_cr["Perception"],
                                                                        topic_c   |->  topic_c["Perception"],
                                                                        durability |->  durability["Perception"],
@@ -612,29 +611,29 @@ BeginPerception == /\ pc["Perception"] = "BeginPerception"
                                    history_, pid, topic, data, dst, nodes, 
                                    pid_, pid_D, pid_P, result, pid_C >>
 
-WaitInitDiagnostics == /\ pc["Perception"] = "WaitInitDiagnostics"
-                       /\ Assert((topics[TopicInit].subscribers[pid_P].subscribed), 
-                                 "Failure of assertion at line 31, column 5 of macro called at line 160, column 9.")
-                       /\ topics[TopicInit].subscribers[pid_P].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
-                       /\ /\ durability_' = [durability_ EXCEPT !["Perception"] = Volatile]
-                          /\ history_' = [history_ EXCEPT !["Perception"] = KeepLast]
-                          /\ pid_c' = [pid_c EXCEPT !["Perception"] = pid_P]
-                          /\ stack' = [stack EXCEPT !["Perception"] = << [ procedure |->  "create_publish",
-                                                                           pc        |->  "StateYes",
-                                                                           pid_c     |->  pid_c["Perception"],
-                                                                           topic_    |->  topic_["Perception"],
-                                                                           durability_ |->  durability_["Perception"],
-                                                                           history_  |->  history_["Perception"] ] >>
-                                                                       \o stack["Perception"]]
-                          /\ topic_' = [topic_ EXCEPT !["Perception"] = TopicControl]
-                       /\ pc' = [pc EXCEPT !["Perception"] = "BeginCreatePublish"]
-                       /\ UNCHANGED << topics, finish_diagnostics, 
-                                       finish_perception, StateInitializer, 
-                                       StateDiagnostics, StatePerception, 
-                                       StateControl, pid_cr, topic_c, 
-                                       durability, history, pid, topic, data, 
-                                       dst, nodes, pid_, pid_D, pid_P, result, 
-                                       pid_C >>
+WaitInitPerception == /\ pc["Perception"] = "WaitInitPerception"
+                      /\ Assert((topics[TopicInit].subscribers[pid_P].subscribed), 
+                                "Failure of assertion at line 31, column 5 of macro called at line 160, column 9.")
+                      /\ topics[TopicInit].subscribers[pid_P].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
+                      /\ /\ durability_' = [durability_ EXCEPT !["Perception"] = Volatile]
+                         /\ history_' = [history_ EXCEPT !["Perception"] = KeepLast]
+                         /\ pid_c' = [pid_c EXCEPT !["Perception"] = pid_P]
+                         /\ stack' = [stack EXCEPT !["Perception"] = << [ procedure |->  "create_publish",
+                                                                          pc        |->  "StateYes",
+                                                                          pid_c     |->  pid_c["Perception"],
+                                                                          topic_    |->  topic_["Perception"],
+                                                                          durability_ |->  durability_["Perception"],
+                                                                          history_  |->  history_["Perception"] ] >>
+                                                                      \o stack["Perception"]]
+                         /\ topic_' = [topic_ EXCEPT !["Perception"] = TopicControl]
+                      /\ pc' = [pc EXCEPT !["Perception"] = "BeginCreatePublish"]
+                      /\ UNCHANGED << topics, finish_diagnostics, 
+                                      finish_perception, StateInitializer, 
+                                      StateDiagnostics, StatePerception, 
+                                      StateControl, pid_cr, topic_c, 
+                                      durability, history, pid, topic, data, 
+                                      dst, nodes, pid_, pid_D, pid_P, result, 
+                                      pid_C >>
 
 StateYes == /\ pc["Perception"] = "StateYes"
             /\ StatePerception' = "yes"
@@ -690,7 +689,7 @@ EndPerception == /\ pc["Perception"] = "EndPerception"
                                  durability, history, pid, topic, data, dst, 
                                  nodes, pid_, pid_D, pid_P, result, pid_C >>
 
-Perception == BeginPerception \/ WaitInitDiagnostics \/ StateYes \/ StateNo
+Perception == BeginPerception \/ WaitInitPerception \/ StateYes \/ StateNo
                  \/ EndPerception
 
 BeginControl == /\ pc["Control"] = "BeginControl"
