@@ -186,9 +186,9 @@ begin
     WaitControl:
         wait(pid, TopicControl);
 
-        if topics[topic].subscribers[pid].queue = <<>> then
+        if topics[TopicControl].subscribers[pid].queue /= <<>> then
             recv(pid, TopicControl, result);
-        elsif topics[TopicMRM].subscribers[pid].queue = <<>> then
+        elsif topics[TopicMRM].subscribers[pid].queue /= <<>> then
             recv(pid, TopicMRM, result);
         elsif finish_diagnostics /\ finish_perception then
             goto EndControl;
@@ -244,7 +244,7 @@ begin
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "195f098b" /\ chksum(tla) = "5b6d5700")
+\* BEGIN TRANSLATION (chksum(pcal) = "c073485f" /\ chksum(tla) = "d52f5cc7")
 \* Label WaitInitDiagnostics of process Diagnostics at line 31 col 5 changed to WaitInitDiagnostics_
 \* Process variable pid of process Initializer at line 116 col 5 changed to pid_
 \* Process variable pid of process Diagnostics at line 129 col 5 changed to pid_D
@@ -759,13 +759,13 @@ WaitControl == /\ pc["Control"] = "WaitControl"
                /\ Assert((topics[TopicControl].subscribers[pid_C].subscribed), 
                          "Failure of assertion at line 31, column 5 of macro called at line 187, column 9.")
                /\ topics[TopicControl].subscribers[pid_C].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
-               /\ IF topics[topic["Control"]].subscribers[pid_C].queue = <<>>
+               /\ IF topics[TopicControl].subscribers[pid_C].queue /= <<>>
                      THEN /\ Assert((topics[TopicControl].subscribers[pid_C].subscribed), 
                                     "Failure of assertion at line 38, column 5 of macro called at line 190, column 13.")
                           /\ result' = Head(topics[TopicControl].subscribers[pid_C].queue)
                           /\ topics' = [topics EXCEPT ![TopicControl].subscribers[pid_C].queue = Tail(topics[TopicControl].subscribers[pid_C].queue)]
                           /\ pc' = [pc EXCEPT !["Control"] = "ChangeStateControl"]
-                     ELSE /\ IF topics[TopicMRM].subscribers[pid_C].queue = <<>>
+                     ELSE /\ IF topics[TopicMRM].subscribers[pid_C].queue /= <<>>
                                 THEN /\ Assert((topics[TopicMRM].subscribers[pid_C].subscribed), 
                                                "Failure of assertion at line 38, column 5 of macro called at line 192, column 13.")
                                      /\ result' = Head(topics[TopicMRM].subscribers[pid_C].queue)
