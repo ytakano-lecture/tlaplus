@@ -12,9 +12,6 @@ variables
                           last |-> ""] \* 最後に送信したデータ。durabilityがTransientLocalの場合、送信時に保存。
     ],
 
-    finish_diagnostics = FALSE,
-    finish_perception = FALSE,
-
     \* 各ノードの初期状態
     StateInitializer = "start", \* "start", "init"
     StateDiagnostics = "start", \* "start", "normal", "error"
@@ -25,13 +22,15 @@ define
     EventuallyInitDiagnostics == <> (StateDiagnostics = "normal")
     EventuallyInitPerception  == <> (StatePerception = "yes")
     MRM == <>[] (StateControl = "stop")
+
+    NodesSeq == <<"Initializer", "Diagnostics", "Perception", "Control">>
 end define;
 
 macro wait(pid, topic) begin
     assert(topics[topic].subscribers[pid].subscribed); \* create_subscribeしたかチェック
 
     \* キューに何かデータが挿入されるまでチェック
-    await topics[topic].subscribers[pid].queue /= <<>> \/ (finish_diagnostics /\ finish_perception);
+    await topics[topic].subscribers[pid].queue /= <<>>
 end macro;
 
 macro recv(pid, topic, result) begin
@@ -65,7 +64,7 @@ procedure create_subscribe(pid, topic, durability, history) begin
     GetLastSubscribe:
         \* durabilityがTransientLocalの場合、publisherからデータを取得可能なはずなので
         \* それをエミュレート
-        if durability = TransientLocal then
+        if durability = TransientLocal /\ topics[topic].last /= "" then
             topics[topic].subscribers[pid].queue := <<topics[topic].last>>;
         end if;
 
@@ -75,11 +74,11 @@ end procedure;
 procedure publish(pid, topic, data)
 variables
     dst = "",
-    nodes = {};
+    nodes = <<>>;
 begin
     BeginPublish:
         assert(pid \in topics[topic].publishers);
-        nodes := NODES;
+        nodes := NodesSeq;
 
     StoreLastPublish:
         if topics[topic].QoS.durability = TransientLocal then
@@ -88,12 +87,9 @@ begin
 
     DoPublish:
         \* NODESでイテレート
-        while nodes /= {} do
-            with node \in nodes do
-                dst := node;
-            end with;
-
-            nodes := nodes \ {dst};
+        while nodes /= <<>> do
+            dst := Head(nodes);
+            nodes := Tail(nodes);
 
             if topics[topic].subscribers[dst].subscribed then \* dstがtopicをsubscribeしていたら
                 if topics[topic].QoS.history = KeepLast then
@@ -143,9 +139,6 @@ begin
     StateError:
         StateDiagnostics := "error"; \* 異常あり
         call publish(pid, TopicControl, "stop");
-
-    EndDiagnostics:
-        finish_diagnostics := TRUE;
 end process;
 
 fair+ process Perception = "Perception"
@@ -167,9 +160,7 @@ begin
     StateNo:
         StatePerception := "no"; \* 歩行者なし
         call publish(pid, TopicControl, "go");
-
-    EndPerception:
-        finish_perception := TRUE;
+        goto StateYes;
 end process;
 
 fair+ process Control = "Control"
@@ -183,10 +174,6 @@ begin
 
     WaitControl:
         wait(pid, TopicControl);
-
-        if topics[TopicControl].subscribers[pid].queue = <<>> /\ finish_diagnostics /\ finish_perception then
-            goto EndControl;
-        end if;
 
     RecvControl:
         recv(pid, TopicControl, result);
@@ -206,41 +193,39 @@ begin
     StateStop:
         StateControl := "stop";
         goto WaitControl;
-
-    EndControl:
-        skip;
 end process;
 
 end algorithm;*)
-\* BEGIN TRANSLATION (chksum(pcal) = "ba1b296f" /\ chksum(tla) = "73a42464")
-\* Process variable pid of process Initializer at line 116 col 5 changed to pid_
-\* Process variable pid of process Diagnostics at line 129 col 5 changed to pid_D
-\* Process variable pid of process Perception at line 153 col 5 changed to pid_P
-\* Process variable pid of process Control at line 178 col 5 changed to pid_C
-\* Parameter pid of procedure create_publish at line 43 col 26 changed to pid_c
-\* Parameter topic of procedure create_publish at line 43 col 31 changed to topic_
-\* Parameter durability of procedure create_publish at line 43 col 38 changed to durability_
-\* Parameter history of procedure create_publish at line 43 col 50 changed to history_
-\* Parameter pid of procedure create_subscribe at line 55 col 28 changed to pid_cr
-\* Parameter topic of procedure create_subscribe at line 55 col 33 changed to topic_c
+\* BEGIN TRANSLATION (chksum(pcal) = "fe62c68" /\ chksum(tla) = "5d8eea16")
+\* Process variable pid of process Initializer at line 112 col 5 changed to pid_
+\* Process variable pid of process Diagnostics at line 125 col 5 changed to pid_D
+\* Process variable pid of process Perception at line 146 col 5 changed to pid_P
+\* Process variable pid of process Control at line 169 col 5 changed to pid_C
+\* Parameter pid of procedure create_publish at line 42 col 26 changed to pid_c
+\* Parameter topic of procedure create_publish at line 42 col 31 changed to topic_
+\* Parameter durability of procedure create_publish at line 42 col 38 changed to durability_
+\* Parameter history of procedure create_publish at line 42 col 50 changed to history_
+\* Parameter pid of procedure create_subscribe at line 54 col 28 changed to pid_cr
+\* Parameter topic of procedure create_subscribe at line 54 col 33 changed to topic_c
 CONSTANT defaultInitValue
-VARIABLES topics, finish_diagnostics, finish_perception, StateInitializer, 
-          StateDiagnostics, StatePerception, StateControl, pc, stack
+VARIABLES topics, StateInitializer, StateDiagnostics, StatePerception, 
+          StateControl, pc, stack
 
 (* define statement *)
 EventuallyInitDiagnostics == <> (StateDiagnostics = "normal")
 EventuallyInitPerception  == <> (StatePerception = "yes")
 MRM == <>[] (StateControl = "stop")
 
+NodesSeq == <<"Initializer", "Diagnostics", "Perception", "Control">>
+
 VARIABLES pid_c, topic_, durability_, history_, pid_cr, topic_c, durability, 
           history, pid, topic, data, dst, nodes, pid_, pid_D, pid_P, result, 
           pid_C
 
-vars == << topics, finish_diagnostics, finish_perception, StateInitializer, 
-           StateDiagnostics, StatePerception, StateControl, pc, stack, pid_c, 
-           topic_, durability_, history_, pid_cr, topic_c, durability, 
-           history, pid, topic, data, dst, nodes, pid_, pid_D, pid_P, result, 
-           pid_C >>
+vars == << topics, StateInitializer, StateDiagnostics, StatePerception, 
+           StateControl, pc, stack, pid_c, topic_, durability_, history_, 
+           pid_cr, topic_c, durability, history, pid, topic, data, dst, nodes, 
+           pid_, pid_D, pid_P, result, pid_C >>
 
 ProcSet == {"Initializer"} \cup {"Diagnostics"} \cup {"Perception"} \cup {"Control"}
 
@@ -251,8 +236,6 @@ Init == (* Global variables *)
                                           QoS |-> [durability |-> "", history |-> ""],
                                           last |-> ""]
                     ]
-        /\ finish_diagnostics = FALSE
-        /\ finish_perception = FALSE
         /\ StateInitializer = "start"
         /\ StateDiagnostics = "start"
         /\ StatePerception = "start"
@@ -272,7 +255,7 @@ Init == (* Global variables *)
         /\ topic = [ self \in ProcSet |-> defaultInitValue]
         /\ data = [ self \in ProcSet |-> defaultInitValue]
         /\ dst = [ self \in ProcSet |-> ""]
-        /\ nodes = [ self \in ProcSet |-> {}]
+        /\ nodes = [ self \in ProcSet |-> <<>>]
         (* Process Initializer *)
         /\ pid_ = "Initializer"
         (* Process Diagnostics *)
@@ -291,12 +274,10 @@ Init == (* Global variables *)
 BeginCreatePublish(self) == /\ pc[self] = "BeginCreatePublish"
                             /\ Assert(((topics[topic_[self]].QoS.history = history_[self] \/ topics[topic_[self]].QoS.history = "") /\
                                        (topics[topic_[self]].QoS.durability = durability_[self] \/ topics[topic_[self]].QoS.durability = "")), 
-                                      "Failure of assertion at line 46, column 9.")
+                                      "Failure of assertion at line 45, column 9.")
                             /\ topics' = [topics EXCEPT ![topic_[self]].QoS = [history |-> history_[self], durability |-> durability_[self]]]
                             /\ pc' = [pc EXCEPT ![self] = "EndCreatePublish"]
-                            /\ UNCHANGED << finish_diagnostics, 
-                                            finish_perception, 
-                                            StateInitializer, StateDiagnostics, 
+                            /\ UNCHANGED << StateInitializer, StateDiagnostics, 
                                             StatePerception, StateControl, 
                                             stack, pid_c, topic_, durability_, 
                                             history_, pid_cr, topic_c, 
@@ -312,25 +293,21 @@ EndCreatePublish(self) == /\ pc[self] = "EndCreatePublish"
                           /\ durability_' = [durability_ EXCEPT ![self] = Head(stack[self]).durability_]
                           /\ history_' = [history_ EXCEPT ![self] = Head(stack[self]).history_]
                           /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
-                          /\ UNCHANGED << finish_diagnostics, 
-                                          finish_perception, StateInitializer, 
-                                          StateDiagnostics, StatePerception, 
-                                          StateControl, pid_cr, topic_c, 
-                                          durability, history, pid, topic, 
-                                          data, dst, nodes, pid_, pid_D, pid_P, 
-                                          result, pid_C >>
+                          /\ UNCHANGED << StateInitializer, StateDiagnostics, 
+                                          StatePerception, StateControl, 
+                                          pid_cr, topic_c, durability, history, 
+                                          pid, topic, data, dst, nodes, pid_, 
+                                          pid_D, pid_P, result, pid_C >>
 
 create_publish(self) == BeginCreatePublish(self) \/ EndCreatePublish(self)
 
 BeginCreateSubscribe(self) == /\ pc[self] = "BeginCreateSubscribe"
                               /\ Assert(((topics[topic_c[self]].QoS.history = history[self] \/ topics[topic_c[self]].QoS.history = "") /\
                                          (topics[topic_c[self]].QoS.durability = durability[self] \/ topics[topic_c[self]].QoS.durability = "")), 
-                                        "Failure of assertion at line 58, column 9.")
+                                        "Failure of assertion at line 57, column 9.")
                               /\ topics' = [topics EXCEPT ![topic_c[self]].QoS = [history |-> history[self], durability |-> durability[self]]]
                               /\ pc' = [pc EXCEPT ![self] = "EnableSubscribe"]
-                              /\ UNCHANGED << finish_diagnostics, 
-                                              finish_perception, 
-                                              StateInitializer, 
+                              /\ UNCHANGED << StateInitializer, 
                                               StateDiagnostics, 
                                               StatePerception, StateControl, 
                                               stack, pid_c, topic_, 
@@ -343,8 +320,7 @@ BeginCreateSubscribe(self) == /\ pc[self] = "BeginCreateSubscribe"
 EnableSubscribe(self) == /\ pc[self] = "EnableSubscribe"
                          /\ topics' = [topics EXCEPT ![topic_c[self]].subscribers[pid_cr[self]].subscribed = TRUE]
                          /\ pc' = [pc EXCEPT ![self] = "GetLastSubscribe"]
-                         /\ UNCHANGED << finish_diagnostics, finish_perception, 
-                                         StateInitializer, StateDiagnostics, 
+                         /\ UNCHANGED << StateInitializer, StateDiagnostics, 
                                          StatePerception, StateControl, stack, 
                                          pid_c, topic_, durability_, history_, 
                                          pid_cr, topic_c, durability, history, 
@@ -352,7 +328,7 @@ EnableSubscribe(self) == /\ pc[self] = "EnableSubscribe"
                                          pid_D, pid_P, result, pid_C >>
 
 GetLastSubscribe(self) == /\ pc[self] = "GetLastSubscribe"
-                          /\ IF durability[self] = TransientLocal
+                          /\ IF durability[self] = TransientLocal /\ topics[topic_c[self]].last /= ""
                                 THEN /\ topics' = [topics EXCEPT ![topic_c[self]].subscribers[pid_cr[self]].queue = <<topics[topic_c[self]].last>>]
                                 ELSE /\ TRUE
                                      /\ UNCHANGED topics
@@ -362,13 +338,11 @@ GetLastSubscribe(self) == /\ pc[self] = "GetLastSubscribe"
                           /\ durability' = [durability EXCEPT ![self] = Head(stack[self]).durability]
                           /\ history' = [history EXCEPT ![self] = Head(stack[self]).history]
                           /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
-                          /\ UNCHANGED << finish_diagnostics, 
-                                          finish_perception, StateInitializer, 
-                                          StateDiagnostics, StatePerception, 
-                                          StateControl, pid_c, topic_, 
-                                          durability_, history_, pid, topic, 
-                                          data, dst, nodes, pid_, pid_D, pid_P, 
-                                          result, pid_C >>
+                          /\ UNCHANGED << StateInitializer, StateDiagnostics, 
+                                          StatePerception, StateControl, pid_c, 
+                                          topic_, durability_, history_, pid, 
+                                          topic, data, dst, nodes, pid_, pid_D, 
+                                          pid_P, result, pid_C >>
 
 create_subscribe(self) == BeginCreateSubscribe(self)
                              \/ EnableSubscribe(self)
@@ -376,11 +350,10 @@ create_subscribe(self) == BeginCreateSubscribe(self)
 
 BeginPublish(self) == /\ pc[self] = "BeginPublish"
                       /\ Assert((pid[self] \in topics[topic[self]].publishers), 
-                                "Failure of assertion at line 81, column 9.")
-                      /\ nodes' = [nodes EXCEPT ![self] = NODES]
+                                "Failure of assertion at line 80, column 9.")
+                      /\ nodes' = [nodes EXCEPT ![self] = NodesSeq]
                       /\ pc' = [pc EXCEPT ![self] = "StoreLastPublish"]
-                      /\ UNCHANGED << topics, finish_diagnostics, 
-                                      finish_perception, StateInitializer, 
+                      /\ UNCHANGED << topics, StateInitializer, 
                                       StateDiagnostics, StatePerception, 
                                       StateControl, stack, pid_c, topic_, 
                                       durability_, history_, pid_cr, topic_c, 
@@ -393,27 +366,24 @@ StoreLastPublish(self) == /\ pc[self] = "StoreLastPublish"
                                 ELSE /\ TRUE
                                      /\ UNCHANGED topics
                           /\ pc' = [pc EXCEPT ![self] = "DoPublish"]
-                          /\ UNCHANGED << finish_diagnostics, 
-                                          finish_perception, StateInitializer, 
-                                          StateDiagnostics, StatePerception, 
-                                          StateControl, stack, pid_c, topic_, 
-                                          durability_, history_, pid_cr, 
-                                          topic_c, durability, history, pid, 
-                                          topic, data, dst, nodes, pid_, pid_D, 
-                                          pid_P, result, pid_C >>
+                          /\ UNCHANGED << StateInitializer, StateDiagnostics, 
+                                          StatePerception, StateControl, stack, 
+                                          pid_c, topic_, durability_, history_, 
+                                          pid_cr, topic_c, durability, history, 
+                                          pid, topic, data, dst, nodes, pid_, 
+                                          pid_D, pid_P, result, pid_C >>
 
 DoPublish(self) == /\ pc[self] = "DoPublish"
-                   /\ IF nodes[self] /= {}
-                         THEN /\ \E node \in nodes[self]:
-                                   dst' = [dst EXCEPT ![self] = node]
-                              /\ nodes' = [nodes EXCEPT ![self] = nodes[self] \ {dst'[self]}]
+                   /\ IF nodes[self] /= <<>>
+                         THEN /\ dst' = [dst EXCEPT ![self] = Head(nodes[self])]
+                              /\ nodes' = [nodes EXCEPT ![self] = Tail(nodes[self])]
                               /\ IF topics[topic[self]].subscribers[dst'[self]].subscribed
                                     THEN /\ IF topics[topic[self]].QoS.history = KeepLast
                                                THEN /\ topics' = [topics EXCEPT ![topic[self]].subscribers[dst'[self]].queue = <<data[self]>>]
                                                ELSE /\ IF topics[topic[self]].QoS.history = KeepAll
                                                           THEN /\ topics' = [topics EXCEPT ![topic[self]].subscribers[dst'[self]].queue = Append(topics[topic[self]].subscribers[dst'[self]].queue, data[self])]
                                                           ELSE /\ Assert((FALSE), 
-                                                                         "Failure of assertion at line 106, column 21.")
+                                                                         "Failure of assertion at line 102, column 21.")
                                                                /\ UNCHANGED topics
                                     ELSE /\ TRUE
                                          /\ UNCHANGED topics
@@ -427,8 +397,7 @@ DoPublish(self) == /\ pc[self] = "DoPublish"
                               /\ data' = [data EXCEPT ![self] = Head(stack[self]).data]
                               /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
                               /\ UNCHANGED topics
-                   /\ UNCHANGED << finish_diagnostics, finish_perception, 
-                                   StateInitializer, StateDiagnostics, 
+                   /\ UNCHANGED << StateInitializer, StateDiagnostics, 
                                    StatePerception, StateControl, pid_c, 
                                    topic_, durability_, history_, pid_cr, 
                                    topic_c, durability, history, pid_, pid_D, 
@@ -439,7 +408,7 @@ publish(self) == BeginPublish(self) \/ StoreLastPublish(self)
 
 CreatePublishInitializer == /\ pc["Initializer"] = "CreatePublishInitializer"
                             /\ Assert((pid_ \in NODES), 
-                                      "Failure of assertion at line 119, column 9.")
+                                      "Failure of assertion at line 115, column 9.")
                             /\ /\ durability_' = [durability_ EXCEPT !["Initializer"] = TransientLocal]
                                /\ history_' = [history_ EXCEPT !["Initializer"] = KeepLast]
                                /\ pid_c' = [pid_c EXCEPT !["Initializer"] = pid_]
@@ -452,14 +421,12 @@ CreatePublishInitializer == /\ pc["Initializer"] = "CreatePublishInitializer"
                                                                              \o stack["Initializer"]]
                                /\ topic_' = [topic_ EXCEPT !["Initializer"] = TopicInit]
                             /\ pc' = [pc EXCEPT !["Initializer"] = "BeginCreatePublish"]
-                            /\ UNCHANGED << topics, finish_diagnostics, 
-                                            finish_perception, 
-                                            StateInitializer, StateDiagnostics, 
-                                            StatePerception, StateControl, 
-                                            pid_cr, topic_c, durability, 
-                                            history, pid, topic, data, dst, 
-                                            nodes, pid_, pid_D, pid_P, result, 
-                                            pid_C >>
+                            /\ UNCHANGED << topics, StateInitializer, 
+                                            StateDiagnostics, StatePerception, 
+                                            StateControl, pid_cr, topic_c, 
+                                            durability, history, pid, topic, 
+                                            data, dst, nodes, pid_, pid_D, 
+                                            pid_P, result, pid_C >>
 
 PubInitializer == /\ pc["Initializer"] = "PubInitializer"
                   /\ StateInitializer' = "init"
@@ -475,20 +442,18 @@ PubInitializer == /\ pc["Initializer"] = "PubInitializer"
                                                                    \o stack["Initializer"]]
                      /\ topic' = [topic EXCEPT !["Initializer"] = TopicInit]
                   /\ dst' = [dst EXCEPT !["Initializer"] = ""]
-                  /\ nodes' = [nodes EXCEPT !["Initializer"] = {}]
+                  /\ nodes' = [nodes EXCEPT !["Initializer"] = <<>>]
                   /\ pc' = [pc EXCEPT !["Initializer"] = "BeginPublish"]
-                  /\ UNCHANGED << topics, finish_diagnostics, 
-                                  finish_perception, StateDiagnostics, 
-                                  StatePerception, StateControl, pid_c, topic_, 
-                                  durability_, history_, pid_cr, topic_c, 
-                                  durability, history, pid_, pid_D, pid_P, 
-                                  result, pid_C >>
+                  /\ UNCHANGED << topics, StateDiagnostics, StatePerception, 
+                                  StateControl, pid_c, topic_, durability_, 
+                                  history_, pid_cr, topic_c, durability, 
+                                  history, pid_, pid_D, pid_P, result, pid_C >>
 
 Initializer == CreatePublishInitializer \/ PubInitializer
 
 BeginDiagnostics == /\ pc["Diagnostics"] = "BeginDiagnostics"
                     /\ Assert((pid_D \in NODES), 
-                              "Failure of assertion at line 132, column 9.")
+                              "Failure of assertion at line 128, column 9.")
                     /\ /\ durability' = [durability EXCEPT !["Diagnostics"] = TransientLocal]
                        /\ history' = [history EXCEPT !["Diagnostics"] = KeepLast]
                        /\ pid_cr' = [pid_cr EXCEPT !["Diagnostics"] = pid_D]
@@ -501,17 +466,16 @@ BeginDiagnostics == /\ pc["Diagnostics"] = "BeginDiagnostics"
                                                                      \o stack["Diagnostics"]]
                        /\ topic_c' = [topic_c EXCEPT !["Diagnostics"] = TopicInit]
                     /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginCreateSubscribe"]
-                    /\ UNCHANGED << topics, finish_diagnostics, 
-                                    finish_perception, StateInitializer, 
-                                    StateDiagnostics, StatePerception, 
-                                    StateControl, pid_c, topic_, durability_, 
-                                    history_, pid, topic, data, dst, nodes, 
-                                    pid_, pid_D, pid_P, result, pid_C >>
+                    /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
+                                    StatePerception, StateControl, pid_c, 
+                                    topic_, durability_, history_, pid, topic, 
+                                    data, dst, nodes, pid_, pid_D, pid_P, 
+                                    result, pid_C >>
 
 WaitInitDiagnostics == /\ pc["Diagnostics"] = "WaitInitDiagnostics"
                        /\ Assert((topics[TopicInit].subscribers[pid_D].subscribed), 
-                                 "Failure of assertion at line 31, column 5 of macro called at line 136, column 9.")
-                       /\ topics[TopicInit].subscribers[pid_D].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
+                                 "Failure of assertion at line 30, column 5 of macro called at line 132, column 9.")
+                       /\ topics[TopicInit].subscribers[pid_D].queue /= <<>>
                        /\ /\ durability_' = [durability_ EXCEPT !["Diagnostics"] = Volatile]
                           /\ history_' = [history_ EXCEPT !["Diagnostics"] = KeepLast]
                           /\ pid_c' = [pid_c EXCEPT !["Diagnostics"] = pid_D]
@@ -524,8 +488,7 @@ WaitInitDiagnostics == /\ pc["Diagnostics"] = "WaitInitDiagnostics"
                                                                         \o stack["Diagnostics"]]
                           /\ topic_' = [topic_ EXCEPT !["Diagnostics"] = TopicControl]
                        /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginCreatePublish"]
-                       /\ UNCHANGED << topics, finish_diagnostics, 
-                                       finish_perception, StateInitializer, 
+                       /\ UNCHANGED << topics, StateInitializer, 
                                        StateDiagnostics, StatePerception, 
                                        StateControl, pid_cr, topic_c, 
                                        durability, history, pid, topic, data, 
@@ -546,20 +509,19 @@ StateNormal == /\ pc["Diagnostics"] = "StateNormal"
                                                                 \o stack["Diagnostics"]]
                   /\ topic' = [topic EXCEPT !["Diagnostics"] = TopicControl]
                /\ dst' = [dst EXCEPT !["Diagnostics"] = ""]
-               /\ nodes' = [nodes EXCEPT !["Diagnostics"] = {}]
+               /\ nodes' = [nodes EXCEPT !["Diagnostics"] = <<>>]
                /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginPublish"]
-               /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                               StateInitializer, StatePerception, StateControl, 
-                               pid_c, topic_, durability_, history_, pid_cr, 
-                               topic_c, durability, history, pid_, pid_D, 
-                               pid_P, result, pid_C >>
+               /\ UNCHANGED << topics, StateInitializer, StatePerception, 
+                               StateControl, pid_c, topic_, durability_, 
+                               history_, pid_cr, topic_c, durability, history, 
+                               pid_, pid_D, pid_P, result, pid_C >>
 
 StateError == /\ pc["Diagnostics"] = "StateError"
               /\ StateDiagnostics' = "error"
               /\ /\ data' = [data EXCEPT !["Diagnostics"] = "stop"]
                  /\ pid' = [pid EXCEPT !["Diagnostics"] = pid_D]
                  /\ stack' = [stack EXCEPT !["Diagnostics"] = << [ procedure |->  "publish",
-                                                                   pc        |->  "EndDiagnostics",
+                                                                   pc        |->  "Done",
                                                                    dst       |->  dst["Diagnostics"],
                                                                    nodes     |->  nodes["Diagnostics"],
                                                                    pid       |->  pid["Diagnostics"],
@@ -568,30 +530,19 @@ StateError == /\ pc["Diagnostics"] = "StateError"
                                                                \o stack["Diagnostics"]]
                  /\ topic' = [topic EXCEPT !["Diagnostics"] = TopicControl]
               /\ dst' = [dst EXCEPT !["Diagnostics"] = ""]
-              /\ nodes' = [nodes EXCEPT !["Diagnostics"] = {}]
+              /\ nodes' = [nodes EXCEPT !["Diagnostics"] = <<>>]
               /\ pc' = [pc EXCEPT !["Diagnostics"] = "BeginPublish"]
-              /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                              StateInitializer, StatePerception, StateControl, 
-                              pid_c, topic_, durability_, history_, pid_cr, 
-                              topic_c, durability, history, pid_, pid_D, pid_P, 
-                              result, pid_C >>
-
-EndDiagnostics == /\ pc["Diagnostics"] = "EndDiagnostics"
-                  /\ finish_diagnostics' = TRUE
-                  /\ pc' = [pc EXCEPT !["Diagnostics"] = "Done"]
-                  /\ UNCHANGED << topics, finish_perception, StateInitializer, 
-                                  StateDiagnostics, StatePerception, 
-                                  StateControl, stack, pid_c, topic_, 
-                                  durability_, history_, pid_cr, topic_c, 
-                                  durability, history, pid, topic, data, dst, 
-                                  nodes, pid_, pid_D, pid_P, result, pid_C >>
+              /\ UNCHANGED << topics, StateInitializer, StatePerception, 
+                              StateControl, pid_c, topic_, durability_, 
+                              history_, pid_cr, topic_c, durability, history, 
+                              pid_, pid_D, pid_P, result, pid_C >>
 
 Diagnostics == BeginDiagnostics \/ WaitInitDiagnostics \/ StateNormal
-                  \/ StateError \/ EndDiagnostics
+                  \/ StateError
 
 BeginPerception == /\ pc["Perception"] = "BeginPerception"
                    /\ Assert((pid_P \in NODES), 
-                             "Failure of assertion at line 156, column 9.")
+                             "Failure of assertion at line 149, column 9.")
                    /\ /\ durability' = [durability EXCEPT !["Perception"] = TransientLocal]
                       /\ history' = [history EXCEPT !["Perception"] = KeepLast]
                       /\ pid_cr' = [pid_cr EXCEPT !["Perception"] = pid_P]
@@ -604,17 +555,16 @@ BeginPerception == /\ pc["Perception"] = "BeginPerception"
                                                                    \o stack["Perception"]]
                       /\ topic_c' = [topic_c EXCEPT !["Perception"] = TopicInit]
                    /\ pc' = [pc EXCEPT !["Perception"] = "BeginCreateSubscribe"]
-                   /\ UNCHANGED << topics, finish_diagnostics, 
-                                   finish_perception, StateInitializer, 
-                                   StateDiagnostics, StatePerception, 
-                                   StateControl, pid_c, topic_, durability_, 
-                                   history_, pid, topic, data, dst, nodes, 
-                                   pid_, pid_D, pid_P, result, pid_C >>
+                   /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
+                                   StatePerception, StateControl, pid_c, 
+                                   topic_, durability_, history_, pid, topic, 
+                                   data, dst, nodes, pid_, pid_D, pid_P, 
+                                   result, pid_C >>
 
 WaitInitPerception == /\ pc["Perception"] = "WaitInitPerception"
                       /\ Assert((topics[TopicInit].subscribers[pid_P].subscribed), 
-                                "Failure of assertion at line 31, column 5 of macro called at line 160, column 9.")
-                      /\ topics[TopicInit].subscribers[pid_P].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
+                                "Failure of assertion at line 30, column 5 of macro called at line 153, column 9.")
+                      /\ topics[TopicInit].subscribers[pid_P].queue /= <<>>
                       /\ /\ durability_' = [durability_ EXCEPT !["Perception"] = Volatile]
                          /\ history_' = [history_ EXCEPT !["Perception"] = KeepLast]
                          /\ pid_c' = [pid_c EXCEPT !["Perception"] = pid_P]
@@ -627,8 +577,7 @@ WaitInitPerception == /\ pc["Perception"] = "WaitInitPerception"
                                                                       \o stack["Perception"]]
                          /\ topic_' = [topic_ EXCEPT !["Perception"] = TopicControl]
                       /\ pc' = [pc EXCEPT !["Perception"] = "BeginCreatePublish"]
-                      /\ UNCHANGED << topics, finish_diagnostics, 
-                                      finish_perception, StateInitializer, 
+                      /\ UNCHANGED << topics, StateInitializer, 
                                       StateDiagnostics, StatePerception, 
                                       StateControl, pid_cr, topic_c, 
                                       durability, history, pid, topic, data, 
@@ -649,20 +598,19 @@ StateYes == /\ pc["Perception"] = "StateYes"
                                                             \o stack["Perception"]]
                /\ topic' = [topic EXCEPT !["Perception"] = TopicControl]
             /\ dst' = [dst EXCEPT !["Perception"] = ""]
-            /\ nodes' = [nodes EXCEPT !["Perception"] = {}]
+            /\ nodes' = [nodes EXCEPT !["Perception"] = <<>>]
             /\ pc' = [pc EXCEPT !["Perception"] = "BeginPublish"]
-            /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                            StateInitializer, StateDiagnostics, StateControl, 
-                            pid_c, topic_, durability_, history_, pid_cr, 
-                            topic_c, durability, history, pid_, pid_D, pid_P, 
-                            result, pid_C >>
+            /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
+                            StateControl, pid_c, topic_, durability_, history_, 
+                            pid_cr, topic_c, durability, history, pid_, pid_D, 
+                            pid_P, result, pid_C >>
 
 StateNo == /\ pc["Perception"] = "StateNo"
            /\ StatePerception' = "no"
            /\ /\ data' = [data EXCEPT !["Perception"] = "go"]
               /\ pid' = [pid EXCEPT !["Perception"] = pid_P]
               /\ stack' = [stack EXCEPT !["Perception"] = << [ procedure |->  "publish",
-                                                               pc        |->  "EndPerception",
+                                                               pc        |->  "StateYes",
                                                                dst       |->  dst["Perception"],
                                                                nodes     |->  nodes["Perception"],
                                                                pid       |->  pid["Perception"],
@@ -671,30 +619,18 @@ StateNo == /\ pc["Perception"] = "StateNo"
                                                            \o stack["Perception"]]
               /\ topic' = [topic EXCEPT !["Perception"] = TopicControl]
            /\ dst' = [dst EXCEPT !["Perception"] = ""]
-           /\ nodes' = [nodes EXCEPT !["Perception"] = {}]
+           /\ nodes' = [nodes EXCEPT !["Perception"] = <<>>]
            /\ pc' = [pc EXCEPT !["Perception"] = "BeginPublish"]
-           /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                           StateInitializer, StateDiagnostics, StateControl, 
-                           pid_c, topic_, durability_, history_, pid_cr, 
-                           topic_c, durability, history, pid_, pid_D, pid_P, 
-                           result, pid_C >>
-
-EndPerception == /\ pc["Perception"] = "EndPerception"
-                 /\ finish_perception' = TRUE
-                 /\ pc' = [pc EXCEPT !["Perception"] = "Done"]
-                 /\ UNCHANGED << topics, finish_diagnostics, StateInitializer, 
-                                 StateDiagnostics, StatePerception, 
-                                 StateControl, stack, pid_c, topic_, 
-                                 durability_, history_, pid_cr, topic_c, 
-                                 durability, history, pid, topic, data, dst, 
-                                 nodes, pid_, pid_D, pid_P, result, pid_C >>
+           /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
+                           StateControl, pid_c, topic_, durability_, history_, 
+                           pid_cr, topic_c, durability, history, pid_, pid_D, 
+                           pid_P, result, pid_C >>
 
 Perception == BeginPerception \/ WaitInitPerception \/ StateYes \/ StateNo
-                 \/ EndPerception
 
 BeginControl == /\ pc["Control"] = "BeginControl"
                 /\ Assert((pid_C \in NODES), 
-                          "Failure of assertion at line 181, column 9.")
+                          "Failure of assertion at line 172, column 9.")
                 /\ /\ durability' = [durability EXCEPT !["Control"] = Volatile]
                    /\ history' = [history EXCEPT !["Control"] = KeepLast]
                    /\ pid_cr' = [pid_cr EXCEPT !["Control"] = pid_C]
@@ -707,21 +643,17 @@ BeginControl == /\ pc["Control"] = "BeginControl"
                                                              \o stack["Control"]]
                    /\ topic_c' = [topic_c EXCEPT !["Control"] = TopicControl]
                 /\ pc' = [pc EXCEPT !["Control"] = "BeginCreateSubscribe"]
-                /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                                StateInitializer, StateDiagnostics, 
+                /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
                                 StatePerception, StateControl, pid_c, topic_, 
                                 durability_, history_, pid, topic, data, dst, 
                                 nodes, pid_, pid_D, pid_P, result, pid_C >>
 
 WaitControl == /\ pc["Control"] = "WaitControl"
                /\ Assert((topics[TopicControl].subscribers[pid_C].subscribed), 
-                         "Failure of assertion at line 31, column 5 of macro called at line 185, column 9.")
-               /\ topics[TopicControl].subscribers[pid_C].queue /= <<>> \/ (finish_diagnostics /\ finish_perception)
-               /\ IF topics[TopicControl].subscribers[pid_C].queue = <<>> /\ finish_diagnostics /\ finish_perception
-                     THEN /\ pc' = [pc EXCEPT !["Control"] = "EndControl"]
-                     ELSE /\ pc' = [pc EXCEPT !["Control"] = "RecvControl"]
-               /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                               StateInitializer, StateDiagnostics, 
+                         "Failure of assertion at line 30, column 5 of macro called at line 176, column 9.")
+               /\ topics[TopicControl].subscribers[pid_C].queue /= <<>>
+               /\ pc' = [pc EXCEPT !["Control"] = "RecvControl"]
+               /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
                                StatePerception, StateControl, stack, pid_c, 
                                topic_, durability_, history_, pid_cr, topic_c, 
                                durability, history, pid, topic, data, dst, 
@@ -729,7 +661,7 @@ WaitControl == /\ pc["Control"] = "WaitControl"
 
 RecvControl == /\ pc["Control"] = "RecvControl"
                /\ Assert((topics[TopicControl].subscribers[pid_C].subscribed), 
-                         "Failure of assertion at line 38, column 5 of macro called at line 192, column 9.")
+                         "Failure of assertion at line 37, column 5 of macro called at line 179, column 9.")
                /\ result' = Head(topics[TopicControl].subscribers[pid_C].queue)
                /\ topics' = [topics EXCEPT ![TopicControl].subscribers[pid_C].queue = Tail(topics[TopicControl].subscribers[pid_C].queue)]
                /\ IF result' = "go"
@@ -737,10 +669,9 @@ RecvControl == /\ pc["Control"] = "RecvControl"
                      ELSE /\ IF result' = "stop"
                                 THEN /\ pc' = [pc EXCEPT !["Control"] = "StateStop"]
                                 ELSE /\ Assert((FALSE), 
-                                               "Failure of assertion at line 199, column 13.")
+                                               "Failure of assertion at line 186, column 13.")
                                      /\ pc' = [pc EXCEPT !["Control"] = "StateGo"]
-               /\ UNCHANGED << finish_diagnostics, finish_perception, 
-                               StateInitializer, StateDiagnostics, 
+               /\ UNCHANGED << StateInitializer, StateDiagnostics, 
                                StatePerception, StateControl, stack, pid_c, 
                                topic_, durability_, history_, pid_cr, topic_c, 
                                durability, history, pid, topic, data, dst, 
@@ -749,34 +680,23 @@ RecvControl == /\ pc["Control"] = "RecvControl"
 StateGo == /\ pc["Control"] = "StateGo"
            /\ StateControl' = "go"
            /\ pc' = [pc EXCEPT !["Control"] = "WaitControl"]
-           /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                           StateInitializer, StateDiagnostics, StatePerception, 
-                           stack, pid_c, topic_, durability_, history_, pid_cr, 
-                           topic_c, durability, history, pid, topic, data, dst, 
-                           nodes, pid_, pid_D, pid_P, result, pid_C >>
+           /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
+                           StatePerception, stack, pid_c, topic_, durability_, 
+                           history_, pid_cr, topic_c, durability, history, pid, 
+                           topic, data, dst, nodes, pid_, pid_D, pid_P, result, 
+                           pid_C >>
 
 StateStop == /\ pc["Control"] = "StateStop"
              /\ StateControl' = "stop"
              /\ pc' = [pc EXCEPT !["Control"] = "WaitControl"]
-             /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                             StateInitializer, StateDiagnostics, 
+             /\ UNCHANGED << topics, StateInitializer, StateDiagnostics, 
                              StatePerception, stack, pid_c, topic_, 
                              durability_, history_, pid_cr, topic_c, 
                              durability, history, pid, topic, data, dst, nodes, 
                              pid_, pid_D, pid_P, result, pid_C >>
 
-EndControl == /\ pc["Control"] = "EndControl"
-              /\ TRUE
-              /\ pc' = [pc EXCEPT !["Control"] = "Done"]
-              /\ UNCHANGED << topics, finish_diagnostics, finish_perception, 
-                              StateInitializer, StateDiagnostics, 
-                              StatePerception, StateControl, stack, pid_c, 
-                              topic_, durability_, history_, pid_cr, topic_c, 
-                              durability, history, pid, topic, data, dst, 
-                              nodes, pid_, pid_D, pid_P, result, pid_C >>
-
 Control == BeginControl \/ WaitControl \/ RecvControl \/ StateGo
-              \/ StateStop \/ EndControl
+              \/ StateStop
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating == /\ \A self \in ProcSet: pc[self] = "Done"
